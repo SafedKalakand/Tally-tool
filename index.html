@@ -2,1038 +2,581 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TallySync — Bank Statement Importer</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<title>Bank Statement → Tally XML Converter</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap');
-
-  :root {
-    --bg: #0a0a0f;
-    --surface: #12121a;
-    --surface2: #1a1a26;
-    --border: #2a2a3d;
-    --accent: #7c6af7;
-    --accent2: #4de8b2;
-    --danger: #f74d6a;
-    --warn: #f7b94d;
-    --text: #e8e8f0;
-    --muted: #6b6b8a;
-    --mono: 'DM Mono', monospace;
-    --sans: 'Syne', sans-serif;
+  :root{
+    --navy:#0f2340;
+    --navy2:#16345c;
+    --gold:#b8892f;
+    --cream:#f7f5f0;
+    --line:#dcdfe6;
+    --green:#1e7145;
+    --red:#a4302c;
+    --gray:#6b7280;
   }
-
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--sans);
-    min-height: 100vh;
-    overflow-x: hidden;
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Segoe UI',system-ui,-apple-system,sans-serif;
+    background:var(--cream);
+    color:#1c1f26;
   }
-
-  /* Animated background grid */
-  body::before {
-    content: '';
-    position: fixed;
-    inset: 0;
-    background-image:
-      linear-gradient(rgba(124,106,247,0.03) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(124,106,247,0.03) 1px, transparent 1px);
-    background-size: 40px 40px;
-    pointer-events: none;
-    z-index: 0;
+  header{
+    background:linear-gradient(135deg,var(--navy),var(--navy2));
+    color:#fff;
+    padding:22px 28px;
   }
-
-  .app { position: relative; z-index: 1; max-width: 1400px; margin: 0 auto; padding: 32px 24px; }
-
-  /* Header */
-  .header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 40px;
-    padding-bottom: 24px;
-    border-bottom: 1px solid var(--border);
+  header h1{margin:0;font-size:20px;font-weight:600;letter-spacing:.2px;}
+  header p{margin:4px 0 0;font-size:13px;color:#c9d4e3;}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 60px;}
+  .steps{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap;}
+  .step{
+    flex:1;min-width:150px;
+    background:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:10px 14px;font-size:12.5px;color:var(--gray);
+    display:flex;align-items:center;gap:8px;
   }
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  .step.active{border-color:var(--navy);color:var(--navy);font-weight:600;background:#fff;}
+  .step.done{border-color:var(--green);color:var(--green);}
+  .step .num{
+    width:20px;height:20px;border-radius:50%;background:var(--line);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0;
   }
-  .logo-icon {
-    width: 44px; height: 44px;
-    background: linear-gradient(135deg, var(--accent), var(--accent2));
-    border-radius: 12px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 20px;
+  .step.active .num{background:var(--navy);}
+  .step.done .num{background:var(--green);}
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:22px;margin-bottom:18px;
   }
-  .logo-text { font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-  .logo-sub { font-size: 11px; color: var(--muted); font-family: var(--mono); letter-spacing: 2px; text-transform: uppercase; }
-
-  .step-badges { display: flex; gap: 8px; }
-  .step-badge {
-    padding: 6px 14px;
-    border-radius: 20px;
-    font-size: 12px;
-    font-family: var(--mono);
-    border: 1px solid var(--border);
-    color: var(--muted);
-    transition: all 0.3s;
+  .card h2{margin:0 0 4px;font-size:16px;color:var(--navy);}
+  .card .sub{margin:0 0 16px;font-size:12.5px;color:var(--gray);}
+  .drop{
+    border:2px dashed var(--line);border-radius:8px;padding:22px;
+    text-align:center;cursor:pointer;transition:.15s;background:#fafbfc;
   }
-  .step-badge.active { border-color: var(--accent); color: var(--accent); background: rgba(124,106,247,0.1); }
-  .step-badge.done { border-color: var(--accent2); color: var(--accent2); background: rgba(77,232,178,0.08); }
-
-  /* Upload zone */
-  .upload-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 28px;
+  .drop:hover{border-color:var(--navy);background:#f1f5fb;}
+  .drop.filled{border-color:var(--green);background:#f2f9f5;}
+  .drop input{display:none;}
+  .drop .fname{font-size:12.5px;color:var(--green);margin-top:6px;font-weight:600;}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:18px;}
+  @media(max-width:760px){.row2{grid-template-columns:1fr;}}
+  button{
+    background:var(--navy);color:#fff;border:none;border-radius:6px;
+    padding:10px 20px;font-size:13.5px;font-weight:600;cursor:pointer;
   }
-  .upload-card {
-    border: 2px dashed var(--border);
-    border-radius: 16px;
-    padding: 32px 24px;
-    text-align: center;
-    cursor: pointer;
-    transition: all 0.3s;
-    position: relative;
-    overflow: hidden;
-    background: var(--surface);
+  button:hover{background:var(--navy2);}
+  button:disabled{background:#b8bec9;cursor:not-allowed;}
+  button.secondary{background:#fff;color:var(--navy);border:1px solid var(--navy);}
+  button.secondary:hover{background:#f1f5fb;}
+  select,input[type=text]{
+    padding:7px 9px;border:1px solid var(--line);border-radius:6px;font-size:13px;width:100%;
   }
-  .upload-card:hover { border-color: var(--accent); background: rgba(124,106,247,0.05); }
-  .upload-card.loaded { border-style: solid; border-color: var(--accent2); background: rgba(77,232,178,0.04); }
-  .upload-card.drag-over { border-color: var(--accent); background: rgba(124,106,247,0.1); transform: scale(1.01); }
-  .upload-icon { font-size: 36px; margin-bottom: 12px; }
-  .upload-title { font-size: 15px; font-weight: 700; margin-bottom: 6px; }
-  .upload-hint { font-size: 12px; color: var(--muted); font-family: var(--mono); }
-  .upload-status { font-size: 12px; color: var(--accent2); font-family: var(--mono); margin-top: 8px; }
-  input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-
-  /* Bank info bar */
-  .bank-info-bar {
-    display: none;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px 24px;
-    margin-bottom: 20px;
-    gap: 32px;
-    font-family: var(--mono);
-    font-size: 12px;
-    flex-wrap: wrap;
+  table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  th{
+    text-align:left;background:var(--navy);color:#fff;padding:8px 10px;
+    position:sticky;top:0;font-weight:600;
   }
-  .bank-info-bar.visible { display: flex; }
-  .bi-item { display: flex; flex-direction: column; gap: 4px; }
-  .bi-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-  .bi-value { color: var(--accent2); font-weight: 500; }
-
-  /* Controls bar */
-  .controls-bar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 20px;
-    flex-wrap: wrap;
+  td{padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tr:hover td{background:#f7fafd;}
+  .tablewrap{max-height:520px;overflow:auto;border:1px solid var(--line);border-radius:8px;}
+  .badge{
+    display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:700;
   }
-  .btn {
-    padding: 10px 20px;
-    border-radius: 10px;
-    border: none;
-    cursor: pointer;
-    font-family: var(--sans);
-    font-size: 13px;
-    font-weight: 600;
-    transition: all 0.2s;
-    display: flex; align-items: center; gap: 7px;
-    letter-spacing: 0.3px;
-  }
-  .btn-primary { background: var(--accent); color: #fff; }
-  .btn-primary:hover { background: #9580ff; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(124,106,247,0.4); }
-  .btn-success { background: var(--accent2); color: #000; }
-  .btn-success:hover { background: #6df5c5; transform: translateY(-1px); box-shadow: 0 4px 20px rgba(77,232,178,0.4); }
-  .btn-ghost { background: var(--surface2); color: var(--text); border: 1px solid var(--border); }
-  .btn-ghost:hover { border-color: var(--accent); color: var(--accent); }
-  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; box-shadow: none !important; }
-
-  .filter-group { display: flex; align-items: center; gap: 8px; margin-left: auto; }
-  .filter-select {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 8px 14px;
-    border-radius: 8px;
-    font-family: var(--mono);
-    font-size: 12px;
-    cursor: pointer;
-    outline: none;
-  }
-  .filter-select:focus { border-color: var(--accent); }
-
-  /* Stats strip */
-  .stats-strip {
-    display: none;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 12px;
-    margin-bottom: 20px;
-  }
-  .stats-strip.visible { display: grid; }
-  .stat-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-  }
-  .stat-label { font-size: 10px; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
-  .stat-value { font-size: 20px; font-weight: 800; }
-  .stat-value.credit { color: var(--accent2); }
-  .stat-value.debit { color: var(--danger); }
-  .stat-value.suspense { color: var(--warn); }
-
-  /* Table */
-  .table-wrap {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    overflow: hidden;
-    margin-bottom: 24px;
-  }
-  table { width: 100%; border-collapse: collapse; }
-  thead tr { background: var(--surface2); }
-  th {
-    padding: 12px 14px;
-    text-align: left;
-    font-size: 10px;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    color: var(--muted);
-    font-family: var(--mono);
-    border-bottom: 1px solid var(--border);
-    white-space: nowrap;
-  }
-  tbody tr {
-    border-bottom: 1px solid rgba(42,42,61,0.5);
-    transition: background 0.15s;
-  }
-  tbody tr:last-child { border-bottom: none; }
-  tbody tr:hover { background: rgba(124,106,247,0.04); }
-  tbody tr.suspense-row { background: rgba(247,185,77,0.03); }
-  td {
-    padding: 11px 14px;
-    font-size: 13px;
-    vertical-align: middle;
-  }
-  .td-date { font-family: var(--mono); font-size: 12px; color: var(--muted); white-space: nowrap; }
-  .td-desc { max-width: 280px; }
-  .desc-main { font-size: 13px; font-weight: 600; }
-  .desc-sub { font-size: 10px; color: var(--muted); font-family: var(--mono); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 260px; }
-  .td-type { white-space: nowrap; }
-  .type-badge {
-    display: inline-block;
-    padding: 3px 8px;
-    border-radius: 6px;
-    font-size: 10px;
-    font-family: var(--mono);
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-  }
-  .type-upi { background: rgba(124,106,247,0.15); color: #a89cff; }
-  .type-neft { background: rgba(77,232,178,0.12); color: var(--accent2); }
-  .type-imps { background: rgba(77,178,232,0.12); color: #7dd3fc; }
-  .type-cash { background: rgba(247,185,77,0.12); color: var(--warn); }
-  .type-other { background: rgba(100,100,120,0.2); color: var(--muted); }
-  .td-amount { font-family: var(--mono); font-size: 13px; white-space: nowrap; }
-  .amount-credit { color: var(--accent2); }
-  .amount-debit { color: var(--danger); }
-  .td-ledger select {
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    color: var(--text);
-    padding: 6px 10px;
-    border-radius: 8px;
-    font-family: var(--mono);
-    font-size: 11px;
-    min-width: 180px;
-    max-width: 220px;
-    outline: none;
-    transition: border 0.2s;
-    cursor: pointer;
-  }
-  .td-ledger select:focus { border-color: var(--accent); }
-  .td-ledger select.suspense-sel { border-color: var(--warn); color: var(--warn); }
-  .td-ledger select.matched-sel { border-color: var(--accent2); }
-  .confidence-dot {
-    display: inline-block;
-    width: 6px; height: 6px;
-    border-radius: 50%;
-    margin-right: 6px;
-    vertical-align: middle;
-  }
-  .conf-high { background: var(--accent2); }
-  .conf-med { background: var(--warn); }
-  .conf-low { background: var(--danger); }
-
-  /* Empty / loading states */
-  .empty-state {
-    text-align: center;
-    padding: 80px 40px;
-    color: var(--muted);
-  }
-  .empty-icon { font-size: 48px; margin-bottom: 16px; opacity: 0.5; }
-  .empty-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; color: var(--text); opacity: 0.4; }
-  .empty-hint { font-size: 13px; font-family: var(--mono); }
-
-  .progress-bar-wrap { margin-bottom: 20px; display: none; }
-  .progress-bar-wrap.visible { display: block; }
-  .progress-label { font-size: 12px; font-family: var(--mono); color: var(--muted); margin-bottom: 6px; }
-  .progress-track { background: var(--surface2); border-radius: 4px; height: 4px; overflow: hidden; }
-  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width 0.3s; width: 0%; }
-
-  /* Toast */
-  .toast {
-    position: fixed;
-    bottom: 32px; right: 32px;
-    background: var(--surface2);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 14px 20px;
-    font-size: 13px;
-    display: none;
-    z-index: 999;
-    animation: toastIn 0.3s ease;
-    max-width: 320px;
-  }
-  .toast.show { display: block; }
-  @keyframes toastIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
-
-  /* Pagination */
-  .pagination {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    font-size: 12px;
-    font-family: var(--mono);
-    color: var(--muted);
-    padding: 12px 0;
-  }
-  .page-btns { display: flex; gap: 6px; }
-  .page-btn {
-    width: 32px; height: 32px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--surface2);
-    color: var(--text);
-    cursor: pointer;
-    font-family: var(--mono);
-    font-size: 12px;
-    transition: all 0.2s;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .page-btn:hover { border-color: var(--accent); color: var(--accent); }
-  .page-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
-
-  @media (max-width: 900px) {
-    .upload-grid { grid-template-columns: 1fr; }
-    .stats-strip { grid-template-columns: 1fr 1fr; }
-  }
+  .badge.recv{background:#e5f4ea;color:var(--green);}
+  .badge.pay{background:#fbe9e8;color:var(--red);}
+  .conf-high{color:var(--green);font-weight:600;}
+  .conf-med{color:#b8892f;font-weight:600;}
+  .conf-low{color:var(--red);font-weight:600;}
+  .amt{font-variant-numeric:tabular-nums;text-align:right;display:block;}
+  .toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:10px;}
+  .msg{font-size:12.5px;padding:9px 12px;border-radius:6px;margin-top:10px;}
+  .msg.err{background:#fbe9e8;color:var(--red);}
+  .msg.ok{background:#e5f4ea;color:var(--green);}
+  .stat{font-size:12px;color:var(--gray);}
+  .stat b{color:#1c1f26;}
+  .footer-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:16px;}
+  .search-cell input{font-size:12px;padding:5px 7px;}
+  .empty-hint{font-size:12.5px;color:var(--gray);padding:20px;text-align:center;}
 </style>
 </head>
 <body>
-<div class="app">
 
-  <!-- Header -->
-  <div class="header">
-    <div class="logo">
-      <div class="logo-icon">⚡</div>
+<header>
+  <h1>Bank Statement → Tally XML Converter</h1>
+  <p>Excel bank statement ko Tally-importable Payment/Receipt vouchers me convert karo — ledger auto-suggest ke saath.</p>
+</header>
+
+<div class="wrap">
+
+  <div class="steps">
+    <div class="step active" id="step-ind-1"><span class="num">1</span>Company Master</div>
+    <div class="step" id="step-ind-2"><span class="num">2</span>Bank Excel</div>
+    <div class="step" id="step-ind-3"><span class="num">3</span>Map Ledgers</div>
+    <div class="step" id="step-ind-4"><span class="num">4</span>Export XML</div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="card" id="step1">
+    <h2>Step 1 — Company Master JSON</h2>
+    <p class="sub">Tally se export kiya hua Masters file upload karo (Ledgers, Groups, Voucher Types). Isse existing ledger list aur bank/cash ledgers detect honge.</p>
+    <div class="drop" id="dropMaster" onclick="document.getElementById('fileMaster').click()">
+      <div>📄 Click ya drag karke Master file yahan daalo (.json)</div>
+      <div class="fname" id="masterFname"></div>
+      <input type="file" id="fileMaster" accept=".json">
+    </div>
+    <div id="masterMsg"></div>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card" id="step2" style="display:none;">
+    <h2>Step 2 — Bank Statement Excel</h2>
+    <p class="sub">Excel me columns hone chahiye: Date, Description/Narration, Debit, Credit, Balance (order kuch bhi ho sakta hai, tool khud detect karega).</p>
+    <div class="drop" id="dropExcel" onclick="document.getElementById('fileExcel').click()">
+      <div>📊 Click ya drag karke Excel file yahan daalo (.xlsx / .xls)</div>
+      <div class="fname" id="excelFname"></div>
+      <input type="file" id="fileExcel" accept=".xlsx,.xls">
+    </div>
+    <div id="excelMsg"></div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div class="card" id="step3" style="display:none;">
+    <h2>Step 3 — Bank Ledger &amp; Line-wise Mapping</h2>
+    <p class="sub">Apna bank ledger select karo. Har transaction ke liye tool ne description ke basis pe ledger suggest kiya hai — zaroorat pade to text-box me naam badal do (existing ledger list se suggestions aayengi).</p>
+
+    <div class="row2" style="margin-bottom:16px;">
       <div>
-        <div class="logo-text">TallySync</div>
-        <div class="logo-sub">Bank Statement → Tally XML Importer</div>
+        <label style="font-size:12.5px;font-weight:600;color:var(--navy);">Bank/Cash Ledger (jis account ka statement hai)</label>
+        <select id="bankLedgerSelect"></select>
+      </div>
+      <div style="display:flex;align-items:end;">
+        <div class="stat" id="rowStats"></div>
       </div>
     </div>
-    <div class="step-badges">
-      <div class="step-badge active" id="sb1">① Upload Files</div>
-      <div class="step-badge" id="sb2">② Map Ledgers</div>
-      <div class="step-badge" id="sb3">③ Export XML</div>
+
+    <div class="toolbar">
+      <div class="stat">
+        <b id="matchedCount">0</b> matched automatically ·
+        <b id="unmatchedCount">0</b> need review
+      </div>
+      <button class="secondary" onclick="reRunMatching()">🔄 Re-run auto matching</button>
+    </div>
+
+    <div class="tablewrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:80px;">Date</th>
+            <th>Description</th>
+            <th style="width:100px;">Debit</th>
+            <th style="width:100px;">Credit</th>
+            <th style="width:70px;">Type</th>
+            <th style="width:230px;">Matched Ledger</th>
+            <th style="width:60px;">Conf.</th>
+          </tr>
+        </thead>
+        <tbody id="txnTableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="footer-actions">
+      <button class="secondary" onclick="goToStep(2)">← Back</button>
+      <button onclick="goToStep4()">Continue to Export →</button>
     </div>
   </div>
 
-  <!-- Upload Zone -->
-  <div class="upload-grid">
-    <div class="upload-card" id="pdfCard" ondragover="handleDrag(event,'pdfCard')" ondragleave="removeDrag('pdfCard')" ondrop="handleDrop(event,'pdf')">
-      <input type="file" id="pdfInput" accept=".pdf" onchange="handlePdfFile(this.files[0])">
-      <div class="upload-icon">🏦</div>
-      <div class="upload-title">Bank Statement PDF</div>
-      <div class="upload-hint">YES Bank / Any bank statement<br>Drag & drop or click to browse</div>
-      <div class="upload-status" id="pdfStatus"></div>
+  <!-- STEP 4 -->
+  <div class="card" id="step4" style="display:none;">
+    <h2>Step 4 — Export Tally XML</h2>
+    <p class="sub">Yeh standard Tally "Import Data" XML format hai (Gateway of Tally → Import → Vouchers me directly use ho sakta hai).</p>
+    <div id="exportSummary" class="stat" style="margin-bottom:14px;"></div>
+    <div class="footer-actions" style="justify-content:flex-start;">
+      <button onclick="downloadXML()">⬇ Download Tally XML</button>
+      <button class="secondary" onclick="goToStep(3)">← Back to review</button>
     </div>
-    <div class="upload-card" id="xmlCard" ondragover="handleDrag(event,'xmlCard')" ondragleave="removeDrag('xmlCard')" ondrop="handleDrop(event,'xml')">
-      <input type="file" id="xmlInput" accept=".xml" onchange="handleXmlFile(this.files[0])">
-      <div class="upload-icon">📋</div>
-      <div class="upload-title">Tally Masters XML</div>
-      <div class="upload-hint">Export from: Tally Gateway → Export → Masters<br>Drag & drop or click to browse</div>
-      <div class="upload-status" id="xmlStatus"></div>
-    </div>
-  </div>
-
-  <!-- Bank Info Bar -->
-  <div class="bank-info-bar" id="bankInfoBar">
-    <div class="bi-item"><div class="bi-label">Account Name</div><div class="bi-value" id="bi-name">—</div></div>
-    <div class="bi-item"><div class="bi-label">Account No</div><div class="bi-value" id="bi-acc">—</div></div>
-    <div class="bi-item"><div class="bi-label">Bank / Branch</div><div class="bi-value" id="bi-bank">—</div></div>
-    <div class="bi-item"><div class="bi-label">IFSC</div><div class="bi-value" id="bi-ifsc">—</div></div>
-    <div class="bi-item"><div class="bi-label">Period</div><div class="bi-value" id="bi-period">—</div></div>
-    <div class="bi-item"><div class="bi-label">Opening Bal</div><div class="bi-value" id="bi-ob">—</div></div>
-    <div class="bi-item"><div class="bi-label">Closing Bal</div><div class="bi-value" id="bi-cb">—</div></div>
-    <div class="bi-item"><div class="bi-label">Company (Tally)</div><div class="bi-value" id="bi-company">—</div></div>
-  </div>
-
-  <!-- Progress bar -->
-  <div class="progress-bar-wrap" id="progressWrap">
-    <div class="progress-label" id="progressLabel">Parsing PDF…</div>
-    <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
-  </div>
-
-  <!-- Stats -->
-  <div class="stats-strip" id="statsStrip">
-    <div class="stat-card">
-      <div class="stat-label">Total Transactions</div>
-      <div class="stat-value" id="statTotal">0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Credits</div>
-      <div class="stat-value credit" id="statCredit">₹0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Total Debits</div>
-      <div class="stat-value debit" id="statDebit">₹0</div>
-    </div>
-    <div class="stat-card">
-      <div class="stat-label">Suspense Count</div>
-      <div class="stat-value suspense" id="statSuspense">0</div>
-    </div>
-  </div>
-
-  <!-- Controls Bar -->
-  <div class="controls-bar" id="controlsBar" style="display:none">
-    <button class="btn btn-success" id="exportBtn" onclick="exportXML()">
-      ⬇ Export Tally XML
-    </button>
-    <button class="btn btn-ghost" onclick="autoRematch()">🔄 Re-run Auto-Match</button>
-    <button class="btn btn-ghost" onclick="resetSuspense()">⚠ Reset Suspense Only</button>
-    <div class="filter-group">
-      <select class="filter-select" id="filterSel" onchange="filterTable()">
-        <option value="all">All Transactions</option>
-        <option value="credit">Credits Only</option>
-        <option value="debit">Debits Only</option>
-        <option value="suspense">Suspense Only</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- Table -->
-  <div class="table-wrap">
-    <div id="emptyState" class="empty-state">
-      <div class="empty-icon">📄</div>
-      <div class="empty-title">No transactions loaded</div>
-      <div class="empty-hint">Upload a bank statement PDF to get started</div>
-    </div>
-    <table id="txTable" style="display:none">
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Date</th>
-          <th>Description</th>
-          <th>Type</th>
-          <th>Reference No</th>
-          <th>Debit</th>
-          <th>Credit</th>
-          <th>Balance</th>
-          <th>Ledger Mapping</th>
-        </tr>
-      </thead>
-      <tbody id="txBody"></tbody>
-    </table>
-  </div>
-
-  <div class="pagination" id="paginationBar" style="display:none">
-    <span id="pageInfo">Showing 0 of 0</span>
-    <div class="page-btns" id="pageBtns"></div>
+    <div id="exportMsg"></div>
   </div>
 
 </div>
 
-<div class="toast" id="toast"></div>
+<datalist id="ledgerOptions"></datalist>
 
 <script>
-pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+let masterLedgers = [];      // {name, parent}
+let bankLedgerNames = [];    // ledgers under Bank Accounts / Bank OD A/c / Cash-in-hand
+let transactions = [];       // parsed excel rows -> {date, desc, debit, credit, balance, type, matched, conf}
+let selectedBankLedger = "";
 
-let transactions = [];
-let ledgers = ['SUSPENSE'];
-let tallyCompany = 'My Company';
-let bankInfo = {};
-let filteredTxs = [];
-let currentPage = 1;
-const PAGE_SIZE = 50;
-
-// ─── DRAG / DROP ───────────────────────────────────────────
-function handleDrag(e, id) { e.preventDefault(); document.getElementById(id).classList.add('drag-over'); }
-function removeDrag(id) { document.getElementById(id).classList.remove('drag-over'); }
-function handleDrop(e, type) {
-  e.preventDefault();
-  const id = type === 'pdf' ? 'pdfCard' : 'xmlCard';
-  removeDrag(id);
-  const file = e.dataTransfer.files[0];
-  if (!file) return;
-  if (type === 'pdf') handlePdfFile(file);
-  else handleXmlFile(file);
-}
-
-// ─── XML MASTERS PARSER ────────────────────────────────────
-function handleXmlFile(file) {
-  if (!file) return;
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    try {
-      // Handle UTF-16 BOM
-      let text;
-      const buf = e.target.result;
-      const view = new Uint8Array(buf);
-      if (view[0] === 0xFF && view[1] === 0xFE) {
-        text = new TextDecoder('utf-16le').decode(buf);
-      } else if (view[0] === 0xFE && view[1] === 0xFF) {
-        text = new TextDecoder('utf-16be').decode(buf);
-      } else {
-        text = new TextDecoder('utf-8').decode(buf);
-      }
-      // Extract company
-      const compMatch = text.match(/<SVCURRENTCOMPANY>(.*?)<\/SVCURRENTCOMPANY>/);
-      if (compMatch) tallyCompany = compMatch[1].replace(/&amp;/g,'&');
-      // Extract ledger names
-      const ledgerNames = [];
-      const re = /LEDGER NAME="([^"]+)"/g;
-      let m;
-      while ((m = re.exec(text)) !== null) {
-        const name = m[1].replace(/&amp;/g,'&');
-        if (!ledgerNames.includes(name)) ledgerNames.push(name);
-      }
-      if (ledgerNames.length === 0) { showToast('⚠ No ledgers found in XML. Check file format.', 5000); return; }
-      if (!ledgerNames.includes('SUSPENSE')) ledgerNames.push('SUSPENSE');
-      ledgers = ledgerNames.sort((a,b) => a.localeCompare(b));
-      document.getElementById('xmlCard').classList.add('loaded');
-      document.getElementById('xmlStatus').textContent = `✓ ${ledgers.length} ledgers loaded — ${tallyCompany}`;
-      document.getElementById('bi-company').textContent = tallyCompany;
-      showToast(`✅ Loaded ${ledgers.length} ledgers from "${tallyCompany}"`);
-      // Re-render table with new ledgers
-      if (transactions.length > 0) { autoRematch(); renderTable(); }
-      updateStepBadges();
-    } catch(err) { showToast('❌ Error parsing Masters XML: ' + err.message, 5000); }
-  };
-  reader.readAsArrayBuffer(file);
-}
-
-// ─── PDF PARSER ────────────────────────────────────────────
-async function handlePdfFile(file) {
-  if (!file) return;
-  setProgress(0, 'Loading PDF…');
-  showProgress(true);
-  try {
-    const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    let fullText = '';
-    for (let i = 1; i <= pdf.numPages; i++) {
-      setProgress(Math.round((i / pdf.numPages) * 60), `Reading page ${i} of ${pdf.numPages}…`);
-      const page = await pdf.getPage(i);
-      const content = await page.getTextContent();
-      // Get items with positions for smarter parsing
-      const items = content.items.map(it => ({ text: it.str, x: Math.round(it.transform[4]), y: Math.round(it.transform[5]) }));
-      // Group by y-position (same line)
-      const lines = {};
-      items.forEach(it => {
-        const key = it.y;
-        if (!lines[key]) lines[key] = [];
-        lines[key].push(it);
-      });
-      const sortedYs = Object.keys(lines).map(Number).sort((a,b) => b - a);
-      sortedYs.forEach(y => {
-        const lineItems = lines[y].sort((a,b) => a.x - b.x);
-        fullText += lineItems.map(i => i.text).join(' ') + '\n';
-      });
-    }
-    setProgress(70, 'Extracting bank details…');
-    bankInfo = extractBankInfo(fullText);
-    updateBankInfoBar();
-    setProgress(80, 'Parsing transactions…');
-    transactions = parseTransactions(fullText);
-    setProgress(90, 'Matching ledgers…');
-    transactions.forEach(tx => { tx.ledger = autoMatch(tx); });
-    setProgress(100, 'Done!');
-    document.getElementById('pdfCard').classList.add('loaded');
-    document.getElementById('pdfStatus').textContent = `✓ ${transactions.length} transactions found`;
-    renderAll();
-    document.getElementById('controlsBar').style.display = 'flex';
-    updateStepBadges();
-    showToast(`✅ Parsed ${transactions.length} transactions`);
-    setTimeout(() => showProgress(false), 800);
-  } catch(err) {
-    showToast('❌ PDF parse error: ' + err.message, 6000);
-    showProgress(false);
-    console.error(err);
+function goToStep(n){
+  for(let i=1;i<=4;i++){
+    document.getElementById('step'+i).style.display = (i===n)?'block':'none';
+    const ind = document.getElementById('step-ind-'+i);
+    ind.classList.remove('active','done');
+    if(i<n) ind.classList.add('done');
+    if(i===n) ind.classList.add('active');
   }
 }
 
-function extractBankInfo(text) {
-  const info = {};
-  const m = (re) => { const r = text.match(re); return r ? r[1].trim() : ''; };
-  info.accountNo = m(/ACCOUNT NO\s*[:\-]\s*([\d]+)/i) || m(/048388700000205/);
-  info.accountName = m(/ACCOUNT NAME\s*[:\-]\s*([^\n]+)/i);
-  info.period = m(/STATEMENT PERIOD\s*[:\-]\s*([^\n]+)/i);
-  info.branch = m(/ACCOUNT BRANCH\s*[:\-]\s*([^\n]+)/i);
-  info.ifsc = m(/RTGS\/NEFT\/IFSC\s*[:\-]\s*([A-Z0-9]+)/i);
-  info.micr = m(/MICR\s*[:\-]\s*([0-9]+)/i);
-  info.openingBalance = m(/Opening Balance\s*[:\-]?\s*([\d,\.]+)/i);
-  info.closingBalance = m(/Closing Balance\s*[:\-]?\s*([\d,\.]+)/i);
-  info.bankName = 'YES Bank'; // default
-  // Try to detect bank from IFSC
-  if (info.ifsc) {
-    const ifscBankMap = { 'YESB': 'YES Bank', 'HDFC': 'HDFC Bank', 'SBIN': 'State Bank of India', 'ICIC': 'ICICI Bank', 'AXIS': 'Axis Bank', 'PUNB': 'Punjab National Bank', 'UCBA': 'UCO Bank', 'RMGB': 'Rajasthan Marudhara Gramin Bank', 'CBIN': 'Central Bank of India' };
-    const prefix = info.ifsc.substring(0,4);
-    if (ifscBankMap[prefix]) info.bankName = ifscBankMap[prefix];
-  }
-  return info;
-}
+/* ---------- STEP 1: MASTER PARSING ---------- */
+document.getElementById('fileMaster').addEventListener('change', async (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('masterFname').textContent = file.name;
+  document.getElementById('dropMaster').classList.add('filled');
+  const msgBox = document.getElementById('masterMsg');
+  msgBox.innerHTML = '';
 
-function updateBankInfoBar() {
-  document.getElementById('bi-name').textContent = bankInfo.accountName || '—';
-  document.getElementById('bi-acc').textContent = bankInfo.accountNo || '—';
-  document.getElementById('bi-bank').textContent = (bankInfo.branch ? bankInfo.branch + ' — ' : '') + (bankInfo.bankName || '');
-  document.getElementById('bi-ifsc').textContent = bankInfo.ifsc || '—';
-  document.getElementById('bi-period').textContent = bankInfo.period || '—';
-  document.getElementById('bi-ob').textContent = bankInfo.openingBalance ? '₹' + bankInfo.openingBalance : '—';
-  document.getElementById('bi-cb').textContent = bankInfo.closingBalance ? '₹' + bankInfo.closingBalance : '—';
-  document.getElementById('bankInfoBar').classList.add('visible');
-}
-
-// ─── TRANSACTION PARSER ────────────────────────────────────
-function parseTransactions(text) {
-  const txs = [];
-  const lines = text.split('\n').map(l => l.trim()).filter(l => l);
-
-  // Date pattern: DD-MM-YYYY HH:MM:SS
-  const dateRe = /^(\d{2}-\d{2}-\d{4})\s+\d{2}:\d{2}:\d{2}/;
-  // Amount: numbers with commas, may have decimals
-  const amtRe = /^[\d,]+\.\d{2}$/;
-
-  let i = 0;
-  while (i < lines.length) {
-    const line = lines[i];
-    const dm = line.match(dateRe);
-    if (!dm) { i++; continue; }
-
-    const txDate = dm[1];
-    // Collect tokens from this and next few lines
-    let chunk = line;
-    let j = i + 1;
-    // The row may span multiple lines; collect until next date line or too far
-    while (j < lines.length && j < i + 8) {
-      if (lines[j].match(dateRe)) break;
-      chunk += ' ' + lines[j];
-      j++;
-    }
-
-    // Extract numbers (potential amounts and balance)
-    const numbers = [];
-    const numRe = /(?<!\w)([\d]{1,3}(?:,\d{3})*\.\d{2})(?!\w)/g;
-    let nm;
-    while ((nm = numRe.exec(chunk)) !== null) {
-      numbers.push({ val: parseFloat(nm[1].replace(/,/g,'')), str: nm[1], pos: nm.index });
-    }
-
-    if (numbers.length < 2) { i = j; continue; }
-
-    // Last number is running balance; others are debit/credit
-    const balance = numbers[numbers.length - 1].val;
-    let debit = 0, credit = 0, refNo = '', desc = '';
-
-    if (numbers.length === 2) {
-      // One amount + balance. Need to figure if debit or credit.
-      // Use running balance change heuristic later; for now keep both 0 and detect from description
-      const amt = numbers[0].val;
-      // Remove all numbers and date from chunk to get description
-      desc = chunk.replace(dateRe, '').replace(/[\d]{1,3}(?:,\d{3})*\.\d{2}/g, '').replace(/\s+/g,' ').trim();
-      // Simple heuristic: if chunk contains debit keywords or "O/W"
-      if (/O\/W|DEBIT|CHG|Chrg|GST\b/i.test(chunk)) debit = amt; else credit = amt;
-    } else if (numbers.length === 3) {
-      // Typical: debit, credit, balance — but one will be 0.00
-      const a = numbers[0].val, b = numbers[1].val;
-      // The 0.00 indicates null slot
-      if (a === 0) { credit = b; } else if (b === 0) { debit = a; } else { credit = b; debit = a; }
-      desc = chunk.replace(dateRe, '').replace(/[\d]{1,3}(?:,\d{3})*\.\d{2}/g, '').replace(/\s+/g,' ').trim();
+  try{
+    const buf = await file.arrayBuffer();
+    const bytes = new Uint8Array(buf);
+    let text;
+    // Detect UTF-16LE BOM (FF FE) which is common in Tally JSON exports
+    if(bytes[0]===0xFF && bytes[1]===0xFE){
+      text = new TextDecoder('utf-16le').decode(buf);
+    } else if(bytes[0]===0xEF && bytes[1]===0xBB && bytes[2]===0xBF){
+      text = new TextDecoder('utf-8').decode(buf).slice(1);
     } else {
-      // More numbers; take second-to-last and third-to-last
-      const a = numbers[numbers.length - 3]?.val || 0;
-      const b = numbers[numbers.length - 2]?.val || 0;
-      if (a === 0) { credit = b; } else if (b === 0) { debit = a; } else { credit = b; }
-      desc = chunk.replace(dateRe, '').replace(/[\d]{1,3}(?:,\d{3})*\.\d{2}/g, '').replace(/\s+/g,' ').trim();
+      text = new TextDecoder('utf-8').decode(buf);
     }
 
-    // Extract reference number (alphanumeric token after known patterns)
-    const refMatch = chunk.match(/(?:RRN[:\s]+|Reference\s*No[:\s]+)([A-Z0-9]{8,})/i)
-      || chunk.match(/\b(YESCX[A-Z0-9]+)\b/)
-      || chunk.match(/\b(PUNBH[A-Z0-9]+)\b/)
-      || chunk.match(/\b(IMPSI[0-9]+)\b/)
-      || chunk.match(/\b(HDFCH[A-Z0-9]+)\b/)
-      || chunk.match(/\b(SBIN2[A-Z0-9]+)\b/)
-      || chunk.match(/\b(PTM[A-Z0-9]+)\b/)
-      || chunk.match(/\b(YBL[a-f0-9]+)\b/)
-      || chunk.match(/\b(0303[0-9]{8,})\b/)
-      || chunk.match(/\b([A-Z]{3,}[0-9]{8,})\b/);
-    if (refMatch) refNo = refMatch[1];
-
-    // Clean description
-    desc = desc.replace(/\s+/g,' ').trim();
-    // Remove reference number from description if present
-    if (refNo) desc = desc.replace(refNo, '').replace(/\s+/g,' ').trim();
-
-    const txType = detectTxType(desc);
-    const { sender, bankName, ifsc } = extractTxDetails(desc);
-
-    txs.push({
-      id: txs.length,
-      date: txDate,
-      description: desc,
-      rawDesc: chunk,
-      type: txType,
-      refNo: refNo,
-      debit: debit,
-      credit: credit,
-      balance: balance,
-      sender: sender,
-      txBankName: bankName,
-      txIfsc: ifsc,
-      ledger: 'SUSPENSE'
+    const data = JSON.parse(text);
+    const tm = data.tallymessage || [];
+    masterLedgers = [];
+    tm.forEach(m=>{
+      const md = m.metadata || {};
+      if(md.type === 'Ledger'){
+        masterLedgers.push({ name: md.name, parent: m.parent || '' });
+      }
     });
 
-    i = j;
-  }
-
-  return txs;
-}
-
-function detectTxType(desc) {
-  if (/^UPI\//i.test(desc) || /\bUPI\b/i.test(desc)) return 'UPI';
-  if (/^NEFT|NEFT\s*(Cr|O\/W)/i.test(desc)) return 'NEFT';
-  if (/^IMPS|IMPS\//i.test(desc)) return 'IMPS';
-  if (/BNA CASH DEPOSIT|CASH DEP/i.test(desc)) return 'CASH';
-  if (/SWEEP/i.test(desc)) return 'SWEEP';
-  if (/NET-New FD|FD-/i.test(desc)) return 'FD';
-  if (/CHG|Chrg|GST|INT\./i.test(desc)) return 'CHARGE';
-  return 'OTHER';
-}
-
-function extractTxDetails(desc) {
-  let sender = '', bankName = '', ifsc = '';
-  // Sender from IMPS: IMPS/SENDERNAME/XXX...
-  const impsMatch = desc.match(/IMPS\/([A-Z][A-Z\s]+?)\/XXX/i);
-  if (impsMatch) sender = impsMatch[1].trim();
-  // NEFT sender
-  const neftMatch = desc.match(/NEFT\s*Cr-[A-Z0-9]+-([^-]+)-/i);
-  if (neftMatch) sender = neftMatch[1].trim();
-  // IFSC from NEFT ref
-  const ifscMatch = desc.match(/\b([A-Z]{4}0[A-Z0-9]{6})\b/);
-  if (ifscMatch) ifsc = ifscMatch[1];
-  // Bank name from IMPS description
-  const bankMatch = desc.match(/(ICICI BANK|HDFC BANK|SBI|AXIS BANK|PNB|YES BANK|UCO BANK|PUNJAB NATIONAL|KOTAK)/i);
-  if (bankMatch) bankName = bankMatch[1];
-  return { sender, bankName, ifsc };
-}
-
-// ─── AUTO MATCH ────────────────────────────────────────────
-function autoMatch(tx) {
-  const desc = (tx.description || '').toLowerCase();
-  const raw = (tx.rawDesc || '').toLowerCase();
-
-  // 1. Exact sender/name match against ledger names
-  for (const ledger of ledgers) {
-    if (ledger === 'SUSPENSE') continue;
-    const lname = ledger.toLowerCase();
-    if (lname.length > 3 && (desc.includes(lname) || raw.includes(lname))) return ledger;
-  }
-
-  // 2. Keyword-based rules
-  const rules = [
-    { re: /bank charges?|chrg for|cnbneft|service charge/i, ledger: 'Bank Charges' },
-    { re: /\bGST\b/i, ledger: 'IGST Payable' },
-    { re: /salary|wages/i, ledger: 'Salary and Wages' },
-    { re: /rent/i, ledger: 'Rent Expense' },
-    { re: /interest on (loan|term)/i, ledger: 'Interest on Loan' },
-    { re: /interest received|int\. on swcr/i, ledger: 'Interest Received' },
-    { re: /dividend/i, ledger: 'Dividend Income' },
-    { re: /advertisement/i, ledger: 'Advertisement Expense' },
-    { re: /electricity/i, ledger: 'Electricity Expense' },
-    { re: /telephone|internet/i, ledger: 'Telephone and Internet Expense' },
-    { re: /printing|stationery/i, ledger: 'Printing and Stationery' },
-    { re: /travel|conveyance/i, ledger: 'Travelling and Conveyance' },
-    { re: /repair|maintenance/i, ledger: 'Repair and Maintenance' },
-    { re: /insurance/i, ledger: 'Insurance Expense' },
-    { re: /professional|consultant|audit fees/i, ledger: 'Professional Charges' },
-    { re: /sweep-in credit|sweep/i, ledger: 'SBI Current Account' },
-    { re: /fixed deposit|net-new fd/i, ledger: 'SBI Term Loan' },
-    { re: /cash deposit|bna cash/i, ledger: 'Cash' },
-    { re: /tds/i, ledger: 'TDS Payable - 194C (Contractors)' },
-    { re: /pf payable|epf/i, ledger: 'PF Payable' },
-    { re: /esic/i, ledger: 'ESIC Payable' },
-  ];
-
-  for (const rule of rules) {
-    if (rule.re.test(desc) || rule.re.test(raw)) {
-      const match = ledgers.find(l => l.toLowerCase() === rule.ledger.toLowerCase());
-      if (match) return match;
+    if(masterLedgers.length === 0){
+      msgBox.innerHTML = '<div class="msg err">Is file me koi Ledger master nahi mila. Sahi Master export upload karo.</div>';
+      return;
     }
+
+    const bankParents = ['Bank Accounts','Bank OD A/c','Cash-in-hand'];
+    bankLedgerNames = masterLedgers.filter(l=>bankParents.includes(l.parent)).map(l=>l.name);
+    if(bankLedgerNames.length===0){
+      bankLedgerNames = masterLedgers.filter(l=>/bank/i.test(l.parent)).map(l=>l.name);
+    }
+
+    // populate datalist for ledger suggestions
+    const dl = document.getElementById('ledgerOptions');
+    dl.innerHTML = '';
+    masterLedgers.forEach(l=>{
+      const opt = document.createElement('option');
+      opt.value = l.name;
+      dl.appendChild(opt);
+    });
+
+    msgBox.innerHTML = `<div class="msg ok">✅ ${masterLedgers.length} ledgers load ho gaye. Bank/Cash ledgers mile: ${bankLedgerNames.join(', ') || 'koi nahi'}.</div>`;
+
+    document.getElementById('step2').style.display = 'block';
+    goToStep(2);
+  }catch(err){
+    msgBox.innerHTML = `<div class="msg err">File parse nahi ho payi: ${err.message}</div>`;
+  }
+});
+
+/* ---------- STEP 2: EXCEL PARSING ---------- */
+document.getElementById('fileExcel').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  document.getElementById('excelFname').textContent = file.name;
+  document.getElementById('dropExcel').classList.add('filled');
+  const msgBox = document.getElementById('excelMsg');
+  msgBox.innerHTML = '';
+
+  const reader = new FileReader();
+  reader.onload = (evt)=>{
+    try{
+      const wb = XLSX.read(evt.target.result, {type:'binary', cellDates:true});
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, {defval:''});
+      if(rows.length===0){
+        msgBox.innerHTML = '<div class="msg err">Excel me koi data nahi mila.</div>';
+        return;
+      }
+      const headers = Object.keys(rows[0]);
+      const findCol = (patterns)=> headers.find(h => patterns.some(p=>p.test(h)));
+      const dateCol = findCol([/date/i]);
+      const descCol = findCol([/desc/i,/narrat/i,/particular/i]);
+      const debitCol = findCol([/debit/i,/withdraw/i]);
+      const creditCol = findCol([/credit/i,/deposit/i]);
+      const balCol = findCol([/balance/i]);
+
+      if(!dateCol || !descCol || (!debitCol && !creditCol)){
+        msgBox.innerHTML = '<div class="msg err">Date / Description / Debit / Credit columns detect nahi ho paye. Column headers check karo.</div>';
+        return;
+      }
+
+      transactions = rows.map(r=>{
+        const debit = parseFloat(String(r[debitCol]||'0').replace(/,/g,'')) || 0;
+        const credit = parseFloat(String(r[creditCol]||'0').replace(/,/g,'')) || 0;
+        let dateVal = r[dateCol];
+        let dateStr = '';
+        if(dateVal instanceof Date){
+          const y = dateVal.getFullYear();
+          const mo = String(dateVal.getMonth()+1).padStart(2,'0');
+          const d = String(dateVal.getDate()).padStart(2,'0');
+          dateStr = `${y}${mo}${d}`;
+        } else {
+          dateStr = normalizeDateString(String(dateVal));
+        }
+        return {
+          date: dateStr,
+          desc: String(r[descCol]||'').trim(),
+          debit, credit,
+          balance: r[balCol]||'',
+          type: debit>0 ? 'Payment' : 'Receipt',
+          matched: '', conf: 0
+        };
+      }).filter(t => t.debit>0 || t.credit>0);
+
+      if(transactions.length===0){
+        msgBox.innerHTML = '<div class="msg err">Koi valid transaction row nahi mili (Debit/Credit dono khali hain).</div>';
+        return;
+      }
+
+      msgBox.innerHTML = `<div class="msg ok">✅ ${transactions.length} transactions mil gaye.</div>`;
+      runAutoMatching();
+      renderBankLedgerSelect();
+      renderTxnTable();
+      document.getElementById('step3').style.display='block';
+      goToStep(3);
+    }catch(err){
+      msgBox.innerHTML = `<div class="msg err">Excel parse nahi ho payi: ${err.message}</div>`;
+    }
+  };
+  reader.readAsBinaryString(file);
+});
+
+function normalizeDateString(s){
+  s = (s||'').trim();
+  let m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  if(m){
+    let d = m[1], mo = m[2], y = m[3];
+    if(y.length===2) y = '20'+y;
+    return y + mo.padStart(2,'0') + d.padStart(2,'0');
+  }
+  m = s.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
+  if(m){
+    let y = m[1], mo = m[2], d = m[3];
+    return y + mo.padStart(2,'0') + d.padStart(2,'0');
+  }
+  const digits = s.replace(/[^0-9]/g,'');
+  return digits.length===8 ? digits : '20250401';
+}
+
+/* ---------- STEP 3: LEDGER MATCHING ---------- */
+function normalizeText(s){
+  return (s||'').toLowerCase().replace(/[^a-z0-9 ]/g,' ').replace(/\s+/g,' ').trim();
+}
+
+function scoreMatch(desc, ledgerName){
+  const d = normalizeText(desc);
+  const l = normalizeText(ledgerName);
+  if(!d || !l) return 0;
+  if(d === l) return 100;
+  const lTokens = l.split(' ').filter(t=>t.length>1);
+  const dTokens = d.split(' ').filter(t=>t.length>1);
+  if(lTokens.length===0) return 0;
+  if(l.length >= 6 && d.includes(l)) return 90;
+  let hits = 0, sigHits = 0;
+  lTokens.forEach(lt=>{
+    if(dTokens.includes(lt)){
+      hits++;
+      if(lt.length>=4) sigHits++;
+    }
+  });
+  if(sigHits===0) return 0;
+  const ratio = hits/lTokens.length;
+  return Math.min(88, Math.round(sigHits*15 + ratio*40));
+}
+
+function bestLedgerMatch(desc){
+  let best = {name:'', score:0, len:0};
+  masterLedgers.forEach(l=>{
+    const s = scoreMatch(desc, l.name);
+    const nl = normalizeText(l.name).length;
+    if(s > best.score || (s===best.score && s>0 && nl>best.len)){
+      best = {name:l.name, score:s, len:nl};
+    }
+  });
+  return best;
+}
+
+function runAutoMatching(){
+  const suspense = masterLedgers.find(l=>/suspense/i.test(l.name));
+  transactions.forEach(t=>{
+    const m = bestLedgerMatch(t.desc);
+    t.matched = m.score >= 35 ? m.name : (suspense ? suspense.name : '');
+    t.conf = m.score;
+  });
+  updateMatchStats();
+}
+function reRunMatching(){ runAutoMatching(); renderTxnTable(); }
+
+function updateMatchStats(){
+  const matched = transactions.filter(t=>t.conf>=60).length;
+  const unmatched = transactions.length - matched;
+  document.getElementById('matchedCount').textContent = matched;
+  document.getElementById('unmatchedCount').textContent = unmatched;
+}
+
+function renderBankLedgerSelect(){
+  const sel = document.getElementById('bankLedgerSelect');
+  sel.innerHTML = '';
+  const list = bankLedgerNames.length ? bankLedgerNames : masterLedgers.map(l=>l.name);
+  list.forEach(n=>{
+    const o = document.createElement('option');
+    o.value = n; o.textContent = n;
+    sel.appendChild(o);
+  });
+  selectedBankLedger = list[0] || '';
+  sel.onchange = ()=>{ selectedBankLedger = sel.value; };
+}
+
+function confClass(c){
+  if(c>=70) return 'conf-high';
+  if(c>=35) return 'conf-med';
+  return 'conf-low';
+}
+
+function renderTxnTable(){
+  const body = document.getElementById('txnTableBody');
+  body.innerHTML = '';
+
+  transactions.forEach((t, idx)=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${formatDateDisplay(t.date)}</td>
+      <td>${escapeHtml(t.desc)}</td>
+      <td><span class="amt">${t.debit? t.debit.toFixed(2):''}</span></td>
+      <td><span class="amt">${t.credit? t.credit.toFixed(2):''}</span></td>
+      <td><span class="badge ${t.debit>0?'pay':'recv'}">${t.debit>0?'Payment':'Receipt'}</span></td>
+      <td class="search-cell">
+        <input type="text" list="ledgerOptions" value="${escapeHtml(t.matched)}" data-idx="${idx}" onchange="onLedgerEdit(event)">
+      </td>
+      <td><span class="${confClass(t.conf)}">${t.conf}%</span></td>
+    `;
+    body.appendChild(tr);
+  });
+
+  updateMatchStats();
+}
+
+function onLedgerEdit(e){
+  const idx = parseInt(e.target.getAttribute('data-idx'));
+  transactions[idx].matched = e.target.value;
+  transactions[idx].conf = 100; // manually confirmed
+  updateMatchStats();
+  const row = e.target.closest('tr');
+  row.querySelector('td:last-child span').textContent = '100%';
+  row.querySelector('td:last-child span').className = 'conf-high';
+}
+
+function formatDateDisplay(yyyymmdd){
+  if(!yyyymmdd || yyyymmdd.length<8) return yyyymmdd;
+  return `${yyyymmdd.slice(6,8)}-${yyyymmdd.slice(4,6)}-${yyyymmdd.slice(0,4)}`;
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function goToStep4(){
+  if(!selectedBankLedger){ alert('Pehle bank ledger select karo.'); return; }
+  const missing = transactions.filter(t=>!t.matched).length;
+  document.getElementById('exportSummary').innerHTML =
+    `Bank Ledger: <b>${selectedBankLedger}</b> · Total transactions: <b>${transactions.length}</b> · Missing ledger mapping: <b style="color:${missing?'var(--red)':'var(--green)'}">${missing}</b>`;
+  document.getElementById('step4').style.display='block';
+  goToStep(4);
+}
+
+/* ---------- STEP 4: XML GENERATION ---------- */
+function xmlEscape(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function buildVoucherXML(t){
+  const isPayment = t.debit > 0;
+  const amount = isPayment ? t.debit : t.credit;
+  const vchType = isPayment ? 'Payment' : 'Receipt';
+  const otherLedger = t.matched || 'Suspense A/c';
+
+  // Standard Tally convention: Dr = negative amount + ISDEEMEDPOSITIVE Yes
+  //                            Cr = positive amount + ISDEEMEDPOSITIVE No
+  let entries;
+  if(isPayment){
+    entries = [
+      {name: otherLedger, amt: -amount, dp: 'Yes'},
+      {name: selectedBankLedger, amt: amount, dp: 'No'}
+    ];
+  } else {
+    entries = [
+      {name: selectedBankLedger, amt: -amount, dp: 'Yes'},
+      {name: otherLedger, amt: amount, dp: 'No'}
+    ];
   }
 
-  return 'SUSPENSE';
-}
+  const entryXml = entries.map(en => `
+      <ALLLEDGERENTRIES.LIST>
+        <LEDGERNAME>${xmlEscape(en.name)}</LEDGERNAME>
+        <ISDEEMEDPOSITIVE>${en.dp}</ISDEEMEDPOSITIVE>
+        <AMOUNT>${en.amt.toFixed(2)}</AMOUNT>
+      </ALLLEDGERENTRIES.LIST>`).join('');
 
-function autoRematch() {
-  transactions.forEach(tx => { tx.ledger = autoMatch(tx); });
-  renderAll();
-  showToast('🔄 Re-matched all transactions');
-}
-
-function resetSuspense() {
-  transactions.filter(tx => tx.ledger !== 'SUSPENSE').forEach(tx => {
-    if (autoMatch(tx) === 'SUSPENSE') tx.ledger = 'SUSPENSE';
-  });
-  renderAll();
-}
-
-// ─── RENDER ────────────────────────────────────────────────
-function renderAll() {
-  applyFilter();
-  updateStats();
-}
-
-function applyFilter() {
-  const f = document.getElementById('filterSel').value;
-  filteredTxs = transactions.filter(tx => {
-    if (f === 'credit') return tx.credit > 0;
-    if (f === 'debit') return tx.debit > 0;
-    if (f === 'suspense') return tx.ledger === 'SUSPENSE';
-    return true;
-  });
-  currentPage = 1;
-  renderTable();
-}
-
-function filterTable() { applyFilter(); }
-
-function renderTable() {
-  const tbody = document.getElementById('txBody');
-  document.getElementById('emptyState').style.display = transactions.length === 0 ? 'block' : 'none';
-  document.getElementById('txTable').style.display = transactions.length === 0 ? 'none' : 'table';
-  document.getElementById('statsStrip').classList.toggle('visible', transactions.length > 0);
-
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const end = Math.min(start + PAGE_SIZE, filteredTxs.length);
-  const page = filteredTxs.slice(start, end);
-
-  tbody.innerHTML = page.map((tx, idx) => {
-    const isSuspense = tx.ledger === 'SUSPENSE';
-    const rowClass = isSuspense ? 'suspense-row' : '';
-    const selClass = isSuspense ? 'suspense-sel' : 'matched-sel';
-    const confDot = isSuspense ? '<span class="confidence-dot conf-low"></span>' : '<span class="confidence-dot conf-high"></span>';
-    const debitStr = tx.debit > 0 ? `<span class="amount-debit">− ₹${fmt(tx.debit)}</span>` : '<span style="color:var(--muted)">—</span>';
-    const creditStr = tx.credit > 0 ? `<span class="amount-credit">+ ₹${fmt(tx.credit)}</span>` : '<span style="color:var(--muted)">—</span>';
-    const typeBadge = `<span class="type-badge type-${tx.type.toLowerCase()}">${tx.type}</span>`;
-    const ledgerOpts = ledgers.map(l => `<option value="${esc(l)}" ${l === tx.ledger ? 'selected' : ''}>${l}</option>`).join('');
-    const senderHint = tx.sender ? ` · ${tx.sender}` : '';
-
-    return `<tr class="${rowClass}">
-      <td style="color:var(--muted);font-family:var(--mono);font-size:11px">${start+idx+1}</td>
-      <td class="td-date">${tx.date}</td>
-      <td class="td-desc">
-        <div class="desc-main">${truncate(cleanDesc(tx.description), 40)}</div>
-        <div class="desc-sub">${tx.refNo || senderHint || ''}</div>
-      </td>
-      <td class="td-type">${typeBadge}</td>
-      <td style="font-family:var(--mono);font-size:10px;color:var(--muted);max-width:120px;overflow:hidden;text-overflow:ellipsis">${truncate(tx.refNo, 18)}</td>
-      <td class="td-amount">${debitStr}</td>
-      <td class="td-amount">${creditStr}</td>
-      <td style="font-family:var(--mono);font-size:12px;color:var(--muted)">₹${fmt(tx.balance)}</td>
-      <td class="td-ledger">
-        <div style="display:flex;align-items:center;gap:4px">
-          ${confDot}
-          <select class="${selClass}" onchange="updateLedger(${tx.id}, this.value)">${ledgerOpts}</select>
-        </div>
-      </td>
-    </tr>`;
-  }).join('');
-
-  renderPagination();
-}
-
-function renderPagination() {
-  const bar = document.getElementById('paginationBar');
-  const total = filteredTxs.length;
-  const totalPages = Math.ceil(total / PAGE_SIZE);
-  if (total === 0) { bar.style.display = 'none'; return; }
-  bar.style.display = 'flex';
-  const start = (currentPage - 1) * PAGE_SIZE + 1;
-  const end = Math.min(currentPage * PAGE_SIZE, total);
-  document.getElementById('pageInfo').textContent = `Showing ${start}–${end} of ${total} transactions`;
-  const btns = document.getElementById('pageBtns');
-  btns.innerHTML = '';
-  // Prev
-  const prev = document.createElement('button');
-  prev.className = 'page-btn'; prev.textContent = '‹'; prev.disabled = currentPage === 1;
-  prev.onclick = () => { currentPage--; renderTable(); };
-  btns.appendChild(prev);
-  // Page numbers
-  for (let p = Math.max(1, currentPage-2); p <= Math.min(totalPages, currentPage+2); p++) {
-    const btn = document.createElement('button');
-    btn.className = 'page-btn' + (p === currentPage ? ' active' : '');
-    btn.textContent = p;
-    btn.onclick = ((pp) => () => { currentPage = pp; renderTable(); })(p);
-    btns.appendChild(btn);
-  }
-  // Next
-  const next = document.createElement('button');
-  next.className = 'page-btn'; next.textContent = '›'; next.disabled = currentPage === totalPages;
-  next.onclick = () => { currentPage++; renderTable(); };
-  btns.appendChild(next);
-}
-
-function updateLedger(id, ledger) {
-  const tx = transactions.find(t => t.id === id);
-  if (tx) { tx.ledger = ledger; updateStats(); }
-}
-
-function updateStats() {
-  document.getElementById('statTotal').textContent = transactions.length;
-  document.getElementById('statCredit').textContent = '₹' + fmt(transactions.reduce((s,t) => s + t.credit, 0));
-  document.getElementById('statDebit').textContent = '₹' + fmt(transactions.reduce((s,t) => s + t.debit, 0));
-  document.getElementById('statSuspense').textContent = transactions.filter(t => t.ledger === 'SUSPENSE').length;
-}
-
-// ─── EXPORT XML ────────────────────────────────────────────
-function exportXML() {
-  if (transactions.length === 0) { showToast('⚠ No transactions to export'); return; }
-
-  const bankAcc = bankInfo.accountNo || '000000000000';
-  const ifscCode = bankInfo.ifsc || 'YESB0000001';
-  const bName = bankInfo.bankName || 'YES Bank';
-  const accLedger = bankInfo.accountName || 'Bank Account';
-
-  let vouchers = '';
-  transactions.forEach((tx, idx) => {
-    if (tx.debit === 0 && tx.credit === 0) return;
-    const [day, mon, yr] = tx.date.split('-');
-    const tallyDate = `${yr}${mon}${day}`;
-    const amt = tx.debit > 0 ? tx.debit : tx.credit;
-    const vtype = tx.debit > 0 ? 'Payment' : 'Receipt';
-    const drLedger = tx.debit > 0 ? tx.ledger : esc(accLedger);
-    const crLedger = tx.debit > 0 ? esc(accLedger) : tx.ledger;
-
-    const bankTxDetails = `
-      <BANKTRANSACTIONDETAILS.LIST>
-       <INSTRUMENTNO>${tx.refNo || ''}</INSTRUMENTNO>
-       <INSTRUMENTDATE>${tallyDate}</INSTRUMENTDATE>
-       <TRANSACTIONTYPE>${tx.type}</TRANSACTIONTYPE>
-       <BANKACCOUNT>${bankAcc}</BANKACCOUNT>
-       <IFSCODE>${ifscCode}</IFSCODE>
-       <BANKNAME>${bName}</BANKNAME>
-       <PAYEEVPA>${tx.txIfsc || ''}</PAYEEVPA>
-      </BANKTRANSACTIONDETAILS.LIST>`;
-
-    vouchers += `
+  return `
     <TALLYMESSAGE xmlns:UDF="TallyUDF">
-     <VOUCHER REMOTEID="BANKIMPORT-${idx+1}" VCHTYPE="${vtype}" ACTION="Create" OBJVIEW="Accounting Voucher View">
-      <DATE>${tallyDate}</DATE>
-      <NARRATION>${esc(cleanDesc(tx.description))} | Ref: ${tx.refNo || 'N/A'} | ${tx.type}</NARRATION>
-      <VOUCHERTYPENAME>${vtype}</VOUCHERTYPENAME>
-      <VOUCHERNUMBER>BI/${idx+1}</VOUCHERNUMBER>
-      <PARTYLEDGERNAME>${drLedger}</PARTYLEDGERNAME>
-      <ALLLEDGERENTRIES.LIST>
-       <LEDGERNAME>${drLedger}</LEDGERNAME>
-       <ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE>
-       <AMOUNT>-${amt.toFixed(2)}</AMOUNT>${bankTxDetails}
-      </ALLLEDGERENTRIES.LIST>
-      <ALLLEDGERENTRIES.LIST>
-       <LEDGERNAME>${crLedger}</LEDGERNAME>
-       <ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE>
-       <AMOUNT>${amt.toFixed(2)}</AMOUNT>
-      </ALLLEDGERENTRIES.LIST>
-     </VOUCHER>
+      <VOUCHER VCHTYPE="${vchType}" ACTION="Create" OBJVIEW="Accounting Voucher View">
+        <DATE>${t.date}</DATE>
+        <EFFECTIVEDATE>${t.date}</EFFECTIVEDATE>
+        <VOUCHERTYPENAME>${vchType}</VOUCHERTYPENAME>
+        <NARRATION>${xmlEscape(t.desc)}</NARRATION>
+        <PARTYLEDGERNAME>${xmlEscape(otherLedger)}</PARTYLEDGERNAME>${entryXml}
+      </VOUCHER>
     </TALLYMESSAGE>`;
-  });
+}
 
-  const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<ENVELOPE>
- <HEADER>
-  <TALLYREQUEST>Import Data</TALLYREQUEST>
- </HEADER>
- <BODY>
-  <IMPORTDATA>
-   <REQUESTDESC>
-    <REPORTNAME>Vouchers</REPORTNAME>
-    <STATICVARIABLES>
-     <SVCURRENTCOMPANY>${esc(tallyCompany)}</SVCURRENTCOMPANY>
-    </STATICVARIABLES>
-   </REQUESTDESC>
-   <REQUESTDATA>
-    <!-- Generated by TallySync | Account: ${bankAcc} | ${bankInfo.period || ''} | ${transactions.length} transactions -->
-    ${vouchers}
-   </REQUESTDATA>
-  </IMPORTDATA>
- </BODY>
+function downloadXML(){
+  const msgBox = document.getElementById('exportMsg');
+  const missing = transactions.filter(t=>!t.matched);
+
+  const vouchers = transactions.map(buildVoucherXML).join('');
+  const xml = `<ENVELOPE>
+  <HEADER>
+    <TALLYREQUEST>Import Data</TALLYREQUEST>
+  </HEADER>
+  <BODY>
+    <IMPORTDATA>
+      <REQUESTDESC>
+        <REPORTNAME>Vouchers</REPORTNAME>
+        <STATICVARIABLES>
+          <SVCURRENTCOMPANY>##SVCURRENTCOMPANY##</SVCURRENTCOMPANY>
+        </STATICVARIABLES>
+      </REQUESTDESC>
+      <REQUESTDATA>${vouchers}
+      </REQUESTDATA>
+    </IMPORTDATA>
+  </BODY>
 </ENVELOPE>`;
 
-  const blob = new Blob([xml], { type: 'application/xml' });
+  const blob = new Blob([xml], {type:'text/xml'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `TallyImport_${bankAcc}_${new Date().toISOString().slice(0,10)}.xml`;
+  a.href = url;
+  a.download = 'bank_statement_vouchers.xml';
   a.click();
   URL.revokeObjectURL(url);
-  showToast(`✅ Exported ${transactions.filter(t=>t.debit>0||t.credit>0).length} vouchers to XML`);
-  updateStepBadges(true);
-}
 
-// ─── HELPERS ───────────────────────────────────────────────
-function fmt(n) { return Number(n || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
-function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
-function truncate(s, n) { if (!s) return ''; return s.length > n ? s.slice(0,n) + '…' : s; }
-function cleanDesc(d) { return (d || '').replace(/\s+/g,' ').trim(); }
-
-function showProgress(show) {
-  document.getElementById('progressWrap').classList.toggle('visible', show);
-}
-function setProgress(pct, label) {
-  document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressLabel').textContent = label;
-}
-
-function showToast(msg, dur = 3000) {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(t._timer);
-  t._timer = setTimeout(() => t.classList.remove('show'), dur);
-}
-
-function updateStepBadges(exported = false) {
-  const s1 = document.getElementById('sb1');
-  const s2 = document.getElementById('sb2');
-  const s3 = document.getElementById('sb3');
-  const hasPdf = transactions.length > 0;
-  const hasXml = ledgers.length > 1;
-  if (hasPdf || hasXml) { s1.classList.remove('active'); s1.classList.add('done'); }
-  if (hasPdf) { s2.classList.add('active'); }
-  if (exported) { s2.classList.remove('active'); s2.classList.add('done'); s3.classList.add('active'); }
+  if(missing.length){
+    msgBox.innerHTML = `<div class="msg err">⚠ ${missing.length} transactions me ledger nahi assign hai — woh Suspense A/c me chali gayi hain. XML download ho gayi hai, baad me un vouchers ko Tally me open karke ledger correct kar dena.</div>`;
+  } else {
+    msgBox.innerHTML = `<div class="msg ok">✅ XML download ho gayi. Tally me: Gateway of Tally → Import Data → Vouchers se import karo. (Import se pehle ##SVCURRENTCOMPANY## wali line ko apni company ke exact naam se replace kar dena — Notepad me Find &amp; Replace kar sakte ho.)</div>`;
+  }
 }
 </script>
+
 </body>
 </html>
